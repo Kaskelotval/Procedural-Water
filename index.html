@@ -1,0 +1,235 @@
+﻿<!doctype html>
+<html>
+	<head>
+		<title>PROJEKT</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		
+			
+		<script src="vendor/three.js/Three.js"></script>
+		<script src="vendor/three.js/Detector.js"></script>
+		<!-- https://github.com/mrdoob/stats.js -->
+		<script src="vendor/three.js/Stats.js"></script>
+		<script type="text/javascript" src="dat.gui.js"></script>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>        
+		<script src="vendor/threex/THREEx.screenshot.js"></script>
+		<script src="vendor/threex/THREEx.FullScreen.js"></script>
+		<script src="vendor/threex/THREEx.WindowResize.js"></script>
+		<script src="vendor/three.js/TrackballControls.js"></script>
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+		<link  href="css/main.css" rel="stylesheet"/>
+	</head>
+<body>
+    <div id="bar">1: Choose Quality (Higher = better) <br>2: Press Confirm and wait <br>3: Reload page to redo</div>
+	<!-- three.js container -->
+    <div id="container"></div>
+	<!-- info on screen display -->
+	<div id="info">
+		<div class="top">
+
+		</div>
+		<div class="bottom" id="inlineDoc" >
+		</div> 
+	</div> 
+
+  <div id="container"></div>
+    <script src="js/three.min.js"></script>
+    <script src="shaders/vertex.js"></script>
+    <script src="shaders/fragment.js"></script>
+    <script src="shaders/seaVertex.js"></script>
+    <script src="shaders/seaFragment.js"></script>
+
+
+    <script>
+        var container;
+        var camera, scene, renderer, cameraControls;
+        var uniforms, light1, light2, sphere;
+        var seaMeshRef;
+        var size_var, Height_multiplier, Time_speed, sun_placement, sun_placement2, sun,light, Light_Intensity, Sun_Intensity, vertices;
+        var date = new Date();   
+        var disp = 2000;     
+
+        //GUI
+        //initial values
+
+        quality = {Quality:5};
+        speed_var = {Time_speed:1.0};
+        displayLight = {Light:false};            
+        displaySun = {Sun:true};
+        sun_placement = {sun_placement:Math.random()*0.5};
+        sun_placement2 = {sun_placement2:Math.random()*0.5};
+        sun_i = {Sun_Intensity:1.0};
+        light_i = {Light_Intensity:1.0};
+
+        init();
+
+        function init() {
+            var gui = new dat.GUI();
+            button = {Confirm: 
+                function() {
+                    vertices = 100*quality.Quality
+                    console.log("new size: " + size_var.size_var)
+                    draw();
+                    animate();
+                    gui.destroy();
+                    $('#bar').animate({
+                        marginTop: '-=100%'
+                    });                        
+                }
+            }            
+            gui.add(quality, 'Quality', 1, 10).step(1);
+            gui.add(button, "Confirm");
+
+            size_var = 1000;
+
+        }
+
+
+        function draw(){
+            //GUI
+            var gui = new dat.GUI();
+            gui.add(speed_var, 'Time_speed', 0.0, 5.0);
+            gui.add(displayLight, 'Light');
+            gui.add(light_i,'Light_Intensity',0.0, 5.0);
+            gui.add(displaySun, 'Sun');
+            gui.add(sun_i,'Sun_Intensity',0.0, 5.0);
+            //RENDERER
+            renderer = new THREE.WebGLRenderer({alpha: true});
+            renderer.setClearColor( 0xffffff);
+            
+            renderer.setSize( window.innerWidth, window.innerHeight );
+            container = document.getElementById( 'container' );
+            container.appendChild( renderer.domElement );
+
+            scene = new THREE.Scene();
+
+            camera  = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 1, 1000000 );
+
+
+            camera.position.set(2000, 2000, 2000);
+            camera.up = new THREE.Vector3(0,0,1);
+
+            camera.lookAt(new THREE.Vector3(0,0,0));
+
+            cameraControls  = new THREE.TrackballControls( camera, renderer.domElement) 
+            scene.add(camera);
+
+            // transparently support window resize
+
+
+            //Lights
+            light1 = new THREE.PointLight(0xffffff, 1.0);
+            var lightBall = new THREE.Mesh( new THREE.SphereGeometry( 300, 16, 16 ), new THREE.MeshBasicMaterial( { color: 0xFFFF00 } ) );
+            light1.position.set(0.0,0.0,1.0);
+            light1.add(lightBall);
+            scene.add(light1);
+            var light1Col = new THREE.Vector3(0.6,0.6,0.6);
+
+            light2 = new THREE.PointLight(0xffffff, 1.0);
+            var lightBall = new THREE.Mesh( new THREE.SphereGeometry( 10, 10, 10 ), new THREE.MeshBasicMaterial( { color: 0xFF0000 } ) );
+            light2.position.set(3.0,2.0,0.0);           
+            light2.add(lightBall);
+            scene.add(light2);
+            var light2Col = new THREE.Vector3(0.3,0.2,0.2);
+
+
+            var amb = 0.15;
+            var ambVec = new THREE.Vector3(amb,amb,amb);
+
+            //sea
+            suniforms =     {
+                    u_time: { type: "f", value: speed_var.Time_speed },
+                    u_resolution: { type: "v2", value: new THREE.Vector2() },
+                    u_mouse: { type: "v2", value: new THREE.Vector2() },
+                    u_light1Pos: { type: "v3", value: light1.position},
+                    u_light1Col: { type: "v3", value: light1Col},
+                    u_light2Pos: { type: "v3", value: light2.position},
+                    u_light2Col: { type: "v3", value: light2Col},
+                    u_ambLight: { type: "v3", value: ambVec},
+                    u_camPos: {type: "v3", value: camera.position},
+
+                };
+
+            var geometry = new THREE.PlaneGeometry( size_var, size_var, vertices,vertices );
+            var material = new THREE.ShaderMaterial( {
+                uniforms: suniforms,
+                vertexShader: seaVertex,
+                fragmentShader: seaFragment,
+            } );
+            material.transparent = true;
+            var sea = new THREE.Mesh( geometry, material );
+
+            sea.position.z = -0;                
+            scene.add( sea );
+            console.log(camera.position);
+            console.log(light1.position);
+
+            onWindowResize();
+            window.addEventListener( 'resize', onWindowResize, false );
+
+            document.onmousemove = function(e){
+              suniforms.u_mouse.value.x = e.pageX
+              suniforms.u_mouse.value.y = e.pageY
+            }
+        }
+        function onWindowResize( event ) {
+        	camera.aspect = window.innerWidth / window.innerHeight;
+			camera.updateProjectionMatrix();
+			renderer.setSize( window.innerWidth, window.innerHeight );
+            renderer.render(scene,camera);
+            suniforms.u_resolution.value.x = window.innerWidth;
+            suniforms.u_resolution.value.y = window.innerHeight;
+        }
+
+        function animate() {	        	
+            requestAnimationFrame( animate );
+            render();
+        }
+
+        function render() {
+ 			cameraControls.update();
+            suniforms.u_time.value += 0.05*speed_var.Time_speed;
+               	//Move lights
+        	//light1.position.set(camera.position.x,camera.position.y,camera.position.z);
+        	light1.position.x = Math.sin(0.05*Math.PI*suniforms.u_time.value)*(disp*10.0);
+        	light1.position.z = Math.cos(0.05*Math.PI*suniforms.u_time.value)*(disp*10.0);
+        	light2.position.x = Math.cos(suniforms.u_time.value*0.1)*disp;
+        	light2.position.y = Math.sin(suniforms.u_time.value*0.1)*disp;
+        	light2.position.z = 200.0;
+
+            //These if-statements should be moved to a function.
+            if(displaySun.Sun == false)
+            {
+                light1Col = new THREE.Vector3(0.0,0.0,0.0);
+                light1.visible = false;
+            }
+            else
+            {
+                light1Col = new THREE.Vector3(0.5+0.1*(10.0-Math.abs(light1.position.z/disp)),0.5-0.005*(10.0-Math.abs(light1.position.z/disp)),0.5+0.005*(10.0-Math.abs(light1.position.z/disp)));
+                light1.visible = true;
+
+            }
+
+            if(displayLight.Light == false)
+            {
+                light2Col = new THREE.Vector3(0.0,0.0,0.0);
+                light2.visible = false;
+
+            }
+            else
+            {
+                light2Col = new THREE.Vector3(0.5,0.0,0.0);    
+                light2.visible = true;
+
+            }
+
+            //Update Uniforms
+            suniforms.u_light1Col.value = light1Col;
+            suniforms.u_light2Col.value = light2Col;
+            suniforms.u_light1Pos.value = light1.position;
+            suniforms.u_light2Pos.value = light2.position;
+            renderer.render( scene, camera );
+        }
+    </script>
+</body>
+</html>

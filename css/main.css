@@ -1,0 +1,21 @@
+body {
+	overflow	: hidden;
+	padding		: 0;
+	margin		: 0;
+	color		: #222;
+	background-color: #BBB;
+	font-family: 'Open Sans', sans-serif;
+	font-size	: 100%;
+}
+#bar{
+	padding-top: 20%;
+	padding-left: 10px;
+	text-align: left;
+	position: absolute;
+	background-color: #47c266;
+	font-size: 2em;
+	height: 100%;
+	width: 100%;
+	color: #fff;
+}
+
